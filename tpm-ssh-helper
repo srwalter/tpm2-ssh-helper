@@ -1,0 +1,124 @@
+#!/bin/bash
+
+set -e
+
+datadir="$HOME/tpm-helper"
+
+dir=$(mktemp -d)
+cd $dir
+
+create_issuer () {
+    echo "Enter a VERY secure password for the master password.  It is used for issuing new keys and duplicating keys."
+    read -sp "Enter password: " master_pass
+    read -sp "Confirm: " master_pass2
+
+    if [ "$master_pass" != "$master_pass2" ]; then
+        echo "Passwords don't match."
+        exit 1
+    fi
+
+    tpm2_createprimary -C o -g sha256 -G rsa -c primary.ctx -p "$master_pass"
+
+    mkdir -p $datadir
+    tpm2_evictcontrol -c primary.ctx -o $datadir/primary.persistent
+
+    tpm2_startauthsession -S session.dat
+    tpm2_policycommandcode -S session.dat TPM2_CC_Duplicate
+    tpm2_policysecret -S session.dat -L $datadir/duplicate_policy.dat -c $datadir/primary.persistent "$master_pass"
+    tpm2_flushcontext session.dat
+}
+
+create_user_srk () {
+    cd -
+    tpm2_createprimary -C o -g sha256 -G rsa -c primary.ctx
+    tpm2_readpublic -c primary.ctx -o "$(hostname).pub"
+    rm primary.ctx
+    echo "Created $(hostname).pub"
+}
+
+create_new_key () {
+    keyname="$1"
+
+    if [ -z "$keyname" ]; then
+        echo "Provide the keyname as an argument"
+        exit 1
+    fi
+
+    read -sp "Enter the master password: " master_pass
+    echo "Enter a random passphrase for the key.  It will protect the key in transit."
+    read -sp "Enter password: " user_pass
+    read -sp "Confirm: " user_pass2
+
+    if [ "$user_pass" != "$user_pass2" ]; then
+        echo "Passwords don't match."
+        exit 1
+    fi
+
+    tpm2_create -C $datadir/primary.persistent -g sha256 -G rsa -r "$datadir/$keyname.priv" -u "$datadir/$keyname.pub" -L $datadir/duplicate_policy.dat -p "$user_pass" -P "$master_pass"  -a 'sensitivedataorigin|userwithauth|sign|decrypt'
+}
+
+duplicate_key () {
+    srk="$1"
+    src="$2"
+
+    if [ -z "$srk" ]; then
+        echo "Provide the keyname as an argument"
+        exit 1
+    fi
+
+    if [ -z "$src" ]; then
+        echo "Provide the source key as an argument"
+        exit 1
+    fi
+
+    outname="$src-$(basename -s .pub $srk)"
+
+    read -sp "Enter the master password: " master_pass
+
+    tpm2_load -C $datadir/primary.persistent -u "$datadir/$src.pub" -r "$datadir/$src.priv" -c key.ctx -P "$master_pass"
+    tpm2_startauthsession --policy-session -S session.dat
+    tpm2_policycommandcode -S session.dat TPM2_CC_Duplicate
+    tpm2_policysecret -S session.dat -L policy.dat -c $datadir/primary.persistent "$master_pass"
+
+    tpm2_loadexternal -C n -u "$OLDPWD/$srk" -c srk.ctx
+    tpm2_duplicate -C srk.ctx -c key.ctx -G null -p "session:session.dat" -r "$datadir/$outname.priv" -s "$datadir/$outname.seed"
+    echo "Created $outname.priv and $outname.seed"
+}
+
+import_key () {
+    priv="$1"
+    seed="$2"
+    policy="$3"
+
+    [ -n "$priv" ] || echo "Usage: import-key <private key> <seed> <policy>"
+    [ -n "$seed" ] || echo "Usage: import-key <private key> <seed> <policy>"
+    [ -n "$policy" ] || echo "Usage: import-key <private key> <seed> <policy>"
+
+    tpm2_createprimary -C o -g sha256 -G rsa -c primary.ctx
+    tpm2_import -G rsa -i $priv -C primary.ctx -u key.pub -r key.priv -s $seed -L $policy
+    tpm2_load -C primary.ctx -u key.pub -r key.priv -c key.ctx
+    tpm2_evictcontrol -c key.ctx
+    rm primary.ctx key.pub key.priv key.ctx
+}
+
+setup_ssh () {
+    mkdir -p ~/.tpm2/config
+    echo "type device" > ~/.tpm2/config
+    echo "device /dev/tpmrm0" >> ~/.tpm2/config
+    echo "sign-using-encrypt true" >> ~/.tpm2/config
+    echo "login-required true" >> ~/.tpm2/config
+}
+
+cmd="$1"
+shift
+
+case "$cmd" in
+    create-issuer)      create_issuer;;
+    create-user-srk)    create_user_srk;;
+    new-key)            create_new_key "$@";;
+    duplicate-key)      duplicate_key "$@";;
+    import-key)         import_key "$@";;
+    setup-ssh)          setup_ssh;;
+esac
+
+rm $dir -rf
