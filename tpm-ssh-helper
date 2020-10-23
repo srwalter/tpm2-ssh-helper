@@ -86,19 +86,22 @@ duplicate_key () {
 }
 
 import_key () {
-    priv="$1"
-    seed="$2"
-    policy="$3"
+    pub="$1"
+    priv="$2"
+    seed="$3"
+    policy="$4"
 
-    [ -n "$priv" ] || echo "Usage: import-key <private key> <seed> <policy>"
-    [ -n "$seed" ] || echo "Usage: import-key <private key> <seed> <policy>"
-    [ -n "$policy" ] || echo "Usage: import-key <private key> <seed> <policy>"
+    if [ -z "$pub" -o -z "$priv" -o -z "$seed" -o -z "$policy" ]; then
+       echo "Usage: import-key <public key> <private key> <seed> <policy>"
+       exit 1
+    fi
 
+    cd -
     tpm2_createprimary -C o -g sha256 -G rsa -c primary.ctx
-    tpm2_import -G rsa -i $priv -C primary.ctx -u key.pub -r key.priv -s $seed -L $policy
-    tpm2_load -C primary.ctx -u key.pub -r key.priv -c key.ctx
+    tpm2_import -G rsa -i $priv -C primary.ctx -u $pub -r key.priv -s $seed -L $policy
+    tpm2_load -C primary.ctx -u $pub -r key.priv -c key.ctx
     tpm2_evictcontrol -c key.ctx
-    rm primary.ctx key.pub key.priv key.ctx
+    rm primary.ctx key.priv key.ctx
 }
 
 setup_ssh () {
