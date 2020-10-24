@@ -2,7 +2,7 @@
 
 set -e
 
-datadir="$HOME/tpm-helper"
+datadir="$HOME/.tpm-helper"
 
 dir=$(mktemp -d)
 cd $dir
@@ -10,7 +10,9 @@ cd $dir
 create_issuer () {
     echo "Enter a VERY secure password for the master password.  It is used for issuing new keys and duplicating keys."
     read -sp "Enter password: " master_pass
+    echo
     read -sp "Confirm: " master_pass2
+    echo
 
     if [ "$master_pass" != "$master_pass2" ]; then
         echo "Passwords don't match."
@@ -45,9 +47,12 @@ create_new_key () {
     fi
 
     read -sp "Enter the master password: " master_pass
+    echo
     echo "Enter a random passphrase for the key.  It will protect the key in transit."
     read -sp "Enter password: " user_pass
+    echo
     read -sp "Confirm: " user_pass2
+    echo
 
     if [ "$user_pass" != "$user_pass2" ]; then
         echo "Passwords don't match."
@@ -62,7 +67,7 @@ duplicate_key () {
     src="$2"
 
     if [ -z "$srk" ]; then
-        echo "Provide the keyname as an argument"
+        echo "Provide the SRK as an argument"
         exit 1
     fi
 
@@ -74,6 +79,7 @@ duplicate_key () {
     outname="$src-$(basename -s .pub $srk)"
 
     read -sp "Enter the master password: " master_pass
+    echo
 
     tpm2_load -C $datadir/primary.persistent -u "$datadir/$src.pub" -r "$datadir/$src.priv" -c key.ctx -P "$master_pass"
     tpm2_startauthsession --policy-session -S session.dat
