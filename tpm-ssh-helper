@@ -19,19 +19,28 @@ create_issuer () {
         exit 1
     fi
 
+    # This primary will be the parent to all the issued keys.  Therefore,
+    # creating any new keys requires the master password
     tpm2_createprimary -C o -g sha256 -G rsa -c primary.ctx -p "$master_pass"
 
     mkdir -p $datadir
+    # Make it persistent in the TPM for better performance
     tpm2_evictcontrol -c primary.ctx -o $datadir/primary.persistent
 
     tpm2_startauthsession -S session.dat
     tpm2_policycommandcode -S session.dat TPM2_CC_Duplicate
+    # Allow duplication requires knowing the secret of parent object, i.e. the
+    # master password
     tpm2_policysecret -S session.dat -L $datadir/duplicate_policy.dat -c $datadir/primary.persistent "$master_pass"
     tpm2_flushcontext session.dat
 }
 
 create_user_srk () {
     cd -
+    # Use a generic template for the user SRK, and don't make it persistent.
+    # Unlike on the issuing system, the parent isn't used that much, plus TPM
+    # NV space on user systems may be a limiting factor since tpm2-pk11
+    # requires all user keys to be persistent.
     tpm2_createprimary -C o -g sha256 -G rsa -c primary.ctx
     tpm2_readpublic -c primary.ctx -o "$(hostname).pub"
     rm primary.ctx
@@ -59,6 +68,11 @@ create_new_key () {
         exit 1
     fi
 
+    # Create a new key with our policy that allows duplication using the master
+    # password.  Since adminwithpolicy is set, any admin action, such as
+    # changing the password, will also use the policy.  However, since the
+    # policy doesn't allow any other commands besides duplicate, all admin
+    # actions are effectively forbidden.
     tpm2_create -C $datadir/primary.persistent -g sha256 -G rsa -r "$datadir/$keyname.priv" -u "$datadir/$keyname.pub" -L $datadir/duplicate_policy.dat -p "$user_pass" -P "$master_pass"  -a 'sensitivedataorigin|userwithauth|adminwithpolicy|sign|decrypt'
 }
 
@@ -81,12 +95,15 @@ duplicate_key () {
     read -sp "Enter the master password: " master_pass
     echo
 
+    # Load the user key
     tpm2_load -C $datadir/primary.persistent -u "$datadir/$src.pub" -r "$datadir/$src.priv" -c key.ctx -P "$master_pass"
+    # Prove that we're allowed to duplicate it
     tpm2_startauthsession --policy-session -S session.dat
     tpm2_policycommandcode -S session.dat TPM2_CC_Duplicate
     tpm2_policysecret -S session.dat -L policy.dat -c $datadir/primary.persistent "$master_pass"
 
     tpm2_loadexternal -C n -u "$OLDPWD/$srk" -c srk.ctx
+    # Duplicate the key to the new parent on the remote user system
     tpm2_duplicate -C srk.ctx -c key.ctx -G null -p "session:session.dat" -r "$datadir/$outname.priv" -s "$datadir/$outname.seed"
     tpm2_flushcontext session.dat
     echo "Created $outname.priv and $outname.seed"
@@ -107,6 +124,7 @@ import_key () {
     tpm2_createprimary -C o -g sha256 -G rsa -c primary.ctx
     tpm2_import -G rsa -i $priv -C primary.ctx -u $pub -r key.priv -s $seed -L $policy
     tpm2_load -C primary.ctx -u $pub -r key.priv -c key.ctx
+    # Make the key persistent.  tpm2-pk11 won't see it, otherwise
     tpm2_evictcontrol -c key.ctx
     rm primary.ctx key.priv key.ctx
 }
@@ -116,6 +134,8 @@ setup_ssh () {
     echo "type device" > ~/.tpm2/config
     echo "device /dev/tpmrm0" >> ~/.tpm2/config
     echo "sign-using-encrypt true" >> ~/.tpm2/config
+    # If you decide to not use passwords on user keys for some reason, then
+    # login-required should be changed to false
     echo "login-required true" >> ~/.tpm2/config
 }
 
