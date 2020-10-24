@@ -59,7 +59,7 @@ create_new_key () {
         exit 1
     fi
 
-    tpm2_create -C $datadir/primary.persistent -g sha256 -G rsa -r "$datadir/$keyname.priv" -u "$datadir/$keyname.pub" -L $datadir/duplicate_policy.dat -p "$user_pass" -P "$master_pass"  -a 'sensitivedataorigin|userwithauth|sign|decrypt'
+    tpm2_create -C $datadir/primary.persistent -g sha256 -G rsa -r "$datadir/$keyname.priv" -u "$datadir/$keyname.pub" -L $datadir/duplicate_policy.dat -p "$user_pass" -P "$master_pass"  -a 'sensitivedataorigin|userwithauth|adminwithpolicy|sign|decrypt'
 }
 
 duplicate_key () {

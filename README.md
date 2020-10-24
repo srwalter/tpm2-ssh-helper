@@ -11,7 +11,7 @@ Advantages:
  * Allows for the same key to be installed on multiple systems, which would
    otherwise require issuing multiple hardware keys.
  * The issuing authority can ensure that keys are protected by a password,
-   unlike e.g. normal SSH key files which can be created unprotected. (XXX)
+   unlike e.g. normal SSH key files which can be created unprotected.
  * The key passwords are protected from brute force attack by the TPM.
 
 Disadvantages:
