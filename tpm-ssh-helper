@@ -82,6 +82,7 @@ duplicate_key () {
 
     tpm2_loadexternal -C n -u "$OLDPWD/$srk" -c srk.ctx
     tpm2_duplicate -C srk.ctx -c key.ctx -G null -p "session:session.dat" -r "$datadir/$outname.priv" -s "$datadir/$outname.seed"
+    tpm2_flushcontext session.dat
     echo "Created $outname.priv and $outname.seed"
 }
 
