@@ -112,7 +112,7 @@ import_key () {
 }
 
 setup_ssh () {
-    mkdir -p ~/.tpm2/config
+    mkdir -p ~/.tpm2
     echo "type device" > ~/.tpm2/config
     echo "device /dev/tpmrm0" >> ~/.tpm2/config
     echo "sign-using-encrypt true" >> ~/.tpm2/config
