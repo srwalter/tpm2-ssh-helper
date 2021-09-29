@@ -41,7 +41,7 @@ create_user_srk () {
     # Unlike on the issuing system, the parent isn't used that much, plus TPM
     # NV space on user systems may be a limiting factor since tpm2-pk11
     # requires all user keys to be persistent.
-    tpm2_createprimary -C o -g sha256 -G rsa -c primary.ctx
+    tpm2_createprimary -C o -g sha256 -G rsa -c primary.ctx "$@"
     tpm2_readpublic -c primary.ctx -o "$(hostname).pub"
     rm primary.ctx
     echo "Created $(hostname).pub"
@@ -120,23 +120,37 @@ import_key () {
        exit 1
     fi
 
+    read -sp "Enter the PKCS11 user PIN: " userpin
+    echo
+    read -sp "Enter the key password: " auth
+    echo
+
     cd -
     tpm2_createprimary -C o -g sha256 -G rsa -c primary.ctx
     tpm2_import -G rsa -i $priv -C primary.ctx -u $pub -r key.priv -s $seed -L $policy
     tpm2_load -C primary.ctx -u $pub -r key.priv -c key.ctx
-    # Make the key persistent.  tpm2-pk11 won't see it, otherwise
-    tpm2_evictcontrol -c key.ctx
+    tpm2_ptool link --label=token --key-label=ssh --userpin=$userpin --auth=$auth $pub key.priv
     rm primary.ctx key.priv key.ctx
 }
 
 setup_ssh () {
-    mkdir -p ~/.tpm2
-    echo "type device" > ~/.tpm2/config
-    echo "device /dev/tpmrm0" >> ~/.tpm2/config
-    echo "sign-using-encrypt true" >> ~/.tpm2/config
-    # If you decide to not use passwords on user keys for some reason, then
-    # login-required should be changed to false
-    echo "login-required true" >> ~/.tpm2/config
+    read -sp "Create a PKCS11 security officer PIN: " sopin
+    echo
+    read -sp "Create a PKCS11 user PIN: " userpin
+    echo
+
+    if [ -z "$sopin" -o "${#sopin}" -lt 6 ]; then
+	    echo "Use a better security officer PIN."
+	    exit 2
+    fi
+
+    if [ -z "$userpin" -o "${#userpin}" -lt 4 ]; then
+	    echo "Use a better user PIN."
+	    exit 2
+    fi
+
+    tpm2_ptool init "$@"
+    tpm2_ptool addtoken --pid=1 --label=token --sopin=$sopin --userpin=$userpin
 }
 
 cmd="$1"
@@ -144,7 +158,7 @@ shift
 
 case "$cmd" in
     create-issuer)      create_issuer;;
-    create-user-srk)    create_user_srk;;
+    create-user-srk)    create_user_srk "$@";;
     new-key)            create_new_key "$@";;
     duplicate-key)      duplicate_key "$@";;
     import-key)         import_key "$@";;

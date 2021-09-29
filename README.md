@@ -42,13 +42,20 @@ At this point the key can only be used on the issuing system, which is not
 particularly useful.  We want to duplicate the key to the user's system, but
 first we need to prepare that system:
 
+    [user]$ ./tpm-ssh-helper setup-ssh
+
+This will initialize tpm2-pkcs11, so that we can add our key to it later.  We
+also need to do some initialization of the user's TPM:
+
     [user]$ ./tpm-ssh-helper create-user-srk
 
 This creates a Storage Root Key on the users system which will hold their copy
 of the key.  Note that if you're particularly paranoid, then an administrator
 should run this command themselves.  Otherwise a user intending to circumvent
 the system could create an SRK on a software TPM, and then trivially extract
-the private key from there.
+the private key from there.  If additional arguments to tpm2\_createprimary are
+needed (such as if an owner authorization is set) then those parameters can be
+passed as extra parameters to create-user-srk.
 
 The generated .pub file should be transmitted to the issuing system, and then
 the user key can be duplicated:
@@ -64,15 +71,10 @@ Back on the user system, the new key can be imported into the TPM:
     [user]$ ./tpm-ssh-helper import-key key.pub key.priv key.seed duplicate_policy.dat
 
 At long last, the key can be used with SSH (or really, for any desired
-purpose).  If using tpm2-pk11 (though deprecated, Ubuntu does not ship the newer
-tpm2-pkcs11; also note that if you're using a password on the key, which you
-should, then you must use tpm2-pk11 newer than what Ubuntu ships so it will
-support login-required), there is one last helper to aid in its configuration:
-
-    [user]$ ./tpm-ssh-helper setup-ssh
+purpose).
 
 The user can now use ssh-keygen to get the public ID of the key, and use
 ssh-add to add the key to his SSH agent:
 
-    [user]$ ssh-keygen -D /usr/lib/x86_64-linux-gnu/pkcs11/libtpm2-pk11.so
-    [user]$ ssh-add -s /usr/lib/x86_64-linux-gnu/pkcs11/libtpm2-pk11.so
+    [user]$ ssh-keygen -D /usr/lib/x86_64-linux-gnu/pkcs11/libtpm2_pkcs11.so
+    [user]$ ssh-add -s /usr/lib/x86_64-linux-gnu/pkcs11/libtpm2_pkcs11.so
