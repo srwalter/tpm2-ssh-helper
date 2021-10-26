@@ -151,6 +151,7 @@ setup_ssh () {
 
     tpm2_ptool init "$@"
     tpm2_ptool addtoken --pid=1 --label=token --sopin=$sopin --userpin=$userpin
+    chmod go-rwx -R ~/.tpm2_pkcs11
 }
 
 cmd="$1"
