@@ -1,0 +1,35 @@
+#!/bin/bash
+
+set -e
+
+usage () {
+        echo "$0 <username> <.priv file> <.seed file> <policy>"
+        echo "    E.g.: $0 swalter swalter-paramount.priv swalter-paramount.seed duplicate_policy.dat"
+}
+
+user="$1"
+shift || usage
+priv="$1"
+shift || usage
+seed="$1"
+shift || usage
+policy="$1"
+shift || usage
+
+export TPM2_PKCS11_STORE="/home/$user/.tpm2_pkcs11"
+mkdir $TPM2_PKCS11_STORE
+
+echo "Initializing tpm2-pkcs11 for $user..."
+tpm2_ptool init --path $TPM2_PKCS11_STORE --transient-parent=tpm2-tools-default
+
+PKCS11_MODULE="/usr/lib/x86_64-linux-gnu/pkcs11/libtpm2_pkcs11.so"
+echo "Creating token..."
+pkcs11-tool --module $PKCS11_MODULE --init-token --label=token
+echo "Setting user PIN..."
+pkcs11-tool --module $PKCS11_MODULE --slot-index=0 --init-pin --login
+
+tpm-ssh-helper import-key $user.pub $priv $seed $policy
+
+chown $user $TPM2_PKCS11_STORE
+chgrp -R users $TPM2_PKCS11_STORE
+chmod -R o-rwx $TPM2_PKCS11_STORE
