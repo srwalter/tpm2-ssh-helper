@@ -1,0 +1,5 @@
+tpm2-ssh-helper (1.0-1) jammy; urgency=medium
+
+  * Initial release (Closes: #nnnn)  <nnnn is the bug number of your ITP>
+
+ -- Steven Walter <stevenrwalter@gmail.com>  Fri, 07 Apr 2023 09:14:49 -0400
