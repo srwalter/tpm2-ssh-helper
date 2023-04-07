@@ -1,5 +1,5 @@
 Source: tpm2-ssh-helper
-Section: unknown
+Section: admin
 Priority: optional
 Maintainer: Steven Walter <stevenrwalter@gmail.com>
 Build-Depends: debhelper-compat (= 13)

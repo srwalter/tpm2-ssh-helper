@@ -1,4 +1,4 @@
-tpm2-ssh-helper (1.0-1) jammy; urgency=medium
+tpm2-ssh-helper (1.0-2) jammy; urgency=medium
 
   * Initial release (Closes: #nnnn)  <nnnn is the bug number of your ITP>
 
