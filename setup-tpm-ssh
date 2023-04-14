@@ -17,7 +17,7 @@ policy="$1"
 shift || usage
 
 export TPM2_PKCS11_STORE="/home/$user/.tpm2_pkcs11"
-mkdir $TPM2_PKCS11_STORE
+mkdir -p $TPM2_PKCS11_STORE
 
 echo "Initializing tpm2-pkcs11 for $user..."
 tpm2_ptool init --path $TPM2_PKCS11_STORE --transient-parent=tpm2-tools-default
@@ -30,6 +30,5 @@ pkcs11-tool --module $PKCS11_MODULE --slot-index=0 --init-pin --login
 
 tpm-ssh-helper import-key $user.pub $priv $seed $policy
 
-chown $user $TPM2_PKCS11_STORE
-chgrp -R users $TPM2_PKCS11_STORE
-chmod -R o-rwx $TPM2_PKCS11_STORE
+chown -R $user $TPM2_PKCS11_STORE
+chmod -R go-rwx $TPM2_PKCS11_STORE
